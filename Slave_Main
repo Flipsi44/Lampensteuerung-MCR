@@ -1,0 +1,218 @@
+#include <Arduino.h>
+#include <Wire.h>
+#define LED_RED D7
+#define LED_YELLOW D4
+#define LED_gruen D2
+
+ 
+ 
+//Doc:
+//Send:
+//0x01    -> All LEDs OFF
+//0x02    -> All LEDs ON
+//0x03    -> LED red ON
+//0x04    -> LED red OFF
+//0x05    -> LED yellow ON
+//0x06    -> LED yellow OFF
+//0x07    -> LED green ON
+//0x08    -> LED green OFF
+//0x09    -> READ LED Status
+//
+//Receive:
+//0x10    -> All LEDs OFF
+//0x11    -> All LEDs ON
+//0x12    -> LED red ON               -> yellow & green off
+//0x13    -> LED yellow ON            -> red & green off
+//0x14    -> LED green ON             -> red & yellow off
+//0x15    -> LEDs red & yellow ON     -> green off
+//0x16    -> LEDs red & green ON      ->yellow off
+//0x17    -> LEDs yellow & green ON   ->red off
+ 
+ 
+// put function declarations here:
+int x = 0;
+ 
+//Recieve und Transmittbyte
+byte RxByte;
+byte TxByte = 0;
+ 
+uint64_t lastButtonTime = 0;
+uint8_t tast = 0x00;
+ 
+bool stateRed = false;
+bool stateYellow = false;
+bool stateGreen = false;
+ 
+void I2C_RxHandler(int numBytes)
+{
+  while(Wire.available()) {  // Read Any Received Data
+    RxByte = Wire.read();
+    Serial.println(RxByte);
+  }
+}
+ 
+void I2C_TxHandler(void)
+{
+ 
+  if(!stateRed && !stateYellow && !stateGreen)
+    {
+        //ALL OFF
+        TxByte = 0x10;
+    }
+    else if(stateRed && stateYellow && stateGreen)
+    {
+        //ALL ON
+        TxByte = 0x11;
+    }
+    else if(stateRed && !stateYellow && !stateGreen)
+    {
+        //RED ON
+        TxByte = 0x12;
+    }
+    else if(!stateRed && stateYellow && !stateGreen)
+    {
+        //YELLOW ON
+        TxByte = 0x13;
+    }
+    else if(!stateRed && !stateYellow && stateGreen)
+    {
+        //GREEN ON
+        TxByte = 0x14;
+    }
+    else if(stateRed && stateYellow && !stateGreen)
+    {
+        //RED & YELLOW ON
+        TxByte = 0x15;
+    }
+    else if(stateRed && !stateYellow && stateGreen)
+    {
+        //RED & GREEN ON
+        TxByte = 0x16;
+    }
+    else if(!stateRed && stateYellow && stateGreen)
+    {
+        //YELLOW & GREEN ON
+        TxByte = 0x17;
+    }
+    Wire.write(TxByte);
+}
+
+void setup() {
+ 
+  Serial.begin(115200);
+  pinMode(LED_gruen, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_YELLOW, OUTPUT);
+
+ 
+  Wire.begin(0x55); // Initialize I2C (Slave Mode: address=0x55 )
+  Wire.onReceive(I2C_RxHandler);
+  Wire.onRequest(I2C_TxHandler);
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_YELLOW, HIGH);
+  digitalWrite(LED_gruen, HIGH);
+  delay(2000);
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_YELLOW, LOW);
+  digitalWrite(LED_gruen, LOW);
+}
+ 
+ 
+ 
+void loop()
+{
+ 
+    static int previousButtonState = LOW;
+ 
+    stateRed = digitalRead(LED_RED);
+    stateYellow = digitalRead(LED_YELLOW);
+    stateGreen = digitalRead(LED_gruen);
+ 
+ 
+    //Receive:
+    //0x10    -> All LEDs OFF
+    //0x11    -> All LEDs ON
+    //0x12    -> LED red ON               -> yellow & green off
+    //0x13    -> LED yellow ON            -> red & green off
+    //0x14    -> LED green ON             -> red & yellow off
+    //0x15    -> LEDs red & yellow ON     -> green off
+    //0x16    -> LEDs red & green ON      ->yellow off
+    //0x17    -> LEDs yellow & green ON   ->red off
+ 
+ 
+    if(!stateRed && !stateYellow && !stateGreen)
+    {
+        //ALL OFF
+        TxByte = 0x10;
+    }
+    else if(stateRed && stateYellow && stateGreen)
+    {
+        //ALL ON
+        TxByte = 0x11;
+    }
+    else if(stateRed && !stateYellow && !stateGreen)
+    {
+        //RED ON
+        TxByte = 0x12;
+    }
+    else if(!stateRed && stateYellow && !stateGreen)
+    {
+        //YELLOW ON
+        TxByte = 0x13;
+    }
+    else if(!stateRed && !stateYellow && stateGreen)
+    {
+        //GREEN ON
+        TxByte = 0x14;
+    }
+    else if(stateRed && stateYellow && !stateGreen)
+    {
+        //RED & YELLOW ON
+        TxByte = 0x15;
+    }
+    else if(stateRed && !stateYellow && stateGreen)
+    {
+        //RED & GREEN ON
+        TxByte = 0x16;
+    }
+    else if(!stateRed && stateYellow && stateGreen)
+    {
+        //YELLOW & GREEN ON
+        TxByte = 0x17;
+    }
+   
+    switch (RxByte) {
+        case 0x01: //Alle LED auschalten
+            digitalWrite(LED_RED, LOW);
+            digitalWrite(LED_YELLOW, LOW);
+            digitalWrite(LED_gruen, LOW);
+            break;
+        case 0x02: //ALLE LED ANSCHALTEN
+            digitalWrite(LED_RED, HIGH);
+            digitalWrite(LED_YELLOW, HIGH);
+            digitalWrite(LED_gruen, HIGH);
+            break;
+        case 0x03: // ROTE LED ANSCHALTEN
+            digitalWrite(LED_RED, HIGH);  
+            break;
+        case 0x04: // ROTE LED AUSSCHALTEN
+            digitalWrite(LED_RED, LOW);
+            break;
+        case 0x05: // GELBE LED ANSCHALTEN
+            digitalWrite(LED_YELLOW, HIGH);
+            break;
+        case 0x06: // GELBE LED AUSSCHALTEN
+            digitalWrite(LED_YELLOW, LOW);
+            break;
+        case 0x07: // GRÜNE LED ANSCHALTEN
+            digitalWrite(LED_gruen, HIGH);  
+            break;
+        case 0x08: // GRÜNE LED AUSSCHALTEN
+            digitalWrite(LED_gruen, LOW);
+            break;
+        case 0x09: // LED Status
+            //I2C_TxHandler();
+            break;
+    }
+ 
+}
