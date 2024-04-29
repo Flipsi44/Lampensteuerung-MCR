@@ -1,13 +1,13 @@
 # Lampensteuerung-MCR
 Gruppe Arne Beckmann, Philipp Kulas
 
-Aufagabe ist es, mit zwei verschiedenen Microcontroller und I²C Protokoll eine Lampe anzusteuern. 
+**Aufagabe ist es, mit zwei verschiedenen Microcontroller und I²C Protokoll eine Lampe anzusteuern.** 
 
-Als Microcontroller werden die STM401RE verwendet. 
+**Als Microcontroller werden die STM401RE verwendet.** 
 
-Beide Microcontroller werden mit C++ programmiert, jedoch benutz der Slave die Arduino Framework und der Matser die Cmsis Framework. 
+**Beide Microcontroller werden mit C++ programmiert, jedoch benutz der Slave die Arduino Framework und der Matser die Cmsis Framework.** 
 
-Der Master soll Bytes senden und empfangen. Durch die eingabe von Befehlen über UART werden die Bytes an den Slave geschickt. Der Slave muss dann diese Bytes erkennen und dann die Lampen, je nach Byte ansteuern. Auserdem soll der Master erkennen können ob der Slvae bereit ist zum empfangen. 
+**Der Master soll Bytes senden und empfangen. Durch die eingabe von Befehlen über UART werden die Bytes an den Slave geschickt. Der Slave muss dann diese Bytes erkennen und dann die Lampen, je nach Byte ansteuern. Auserdem soll der Master erkennen können ob der Slvae bereit ist zum empfangen.**
 
 //Bytes:
 //Send:
@@ -31,30 +31,30 @@ Der Master soll Bytes senden und empfangen. Durch die eingabe von Befehlen über
 //0x16    -> LEDs red & green ON      ->yellow off
 //0x17    -> LEDs yellow & green ON   ->red off
 
-Slave:
-Der Slave benutzt die Arduino Framework und muss daher die Ardunio Bibliothek und die Wire Bibliothek eingefügt werden. 
+**Slave:**
+**Der Slave benutzt die Arduino Framework und muss daher die Ardunio Bibliothek und die Wire Bibliothek eingefügt werden.**
 
 #include <Arduino.h>
 #include <Wire.h>
 
-Die Ausgänge für die LEDs werden wie folgt deklariert.
+**Die Ausgänge für die LEDs werden wie folgt deklariert.**
 
 #define LED_RED D7
 #define LED_YELLOW D4
 #define LED_gruen D2
 
-Da die Microcontroller Bytes senden, müssen Variablen deklariert werden. 
+**Da die Microcontroller Bytes senden, müssen Variablen deklariert werden.** 
 
 byte RxByte;       //R für Recieve
 byte TxByte = 0;    // T für Transmitt
 
-Für die If-Anweisung später im Code brauchen wir Bedingunsvariablen.
+**Für die If-Anweisung später im Code brauchen wir Bedingunsvariablen.**
 
 bool stateRed = false;
 bool stateYellow = false;
 bool stateGreen = false;
 
-Für das Recieven benötigen wir eine RecieveHandler Funktion
+**Für das Recieven benötigen wir eine RecieveHandler Funktion**
 
 void I2C_RxHandler(int numBytes)
 {
@@ -64,7 +64,7 @@ void I2C_RxHandler(int numBytes)
   }
 }
 
-Für das Senden der Bytes benötigen auch eine Funktion. Hier wird der Status der LEDs gelesen und je Nach status der TxByte verändert. Durch Wire.write bekommt nun der Master diesen Byte
+**Für das Senden der Bytes benötigen auch eine Funktion. Hier wird der Status der LEDs gelesen und je Nach status der TxByte verändert. Durch Wire.write bekommt nun der Master diesen Byte**
 
 void I2C_TxHandler(void)
 {
