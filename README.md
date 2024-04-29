@@ -10,31 +10,56 @@ Gruppe Arne Beckmann, Philipp Kulas
 **Der Master soll Bytes senden und empfangen. Durch die Eingabe von Befehlen über UART werden die Bytes an den Slave geschickt. Der Slave muss dann diese Bytes erkennen und dann die Lampen, je nach Byte ansteuern. Auserdem soll der Master erkennen können ob der Slave bereit ist zum empfangen.**
 
 //Bytes:
+
 //Send:
-//0x01    -> All LEDs OFF 
+
+//0x01    -> All LEDs OFF
+
 //0x02    -> All LEDs ON
+
 //0x03    -> LED red ON
+
 //0x04    -> LED red OFF
+
 //0x05    -> LED yellow ON
+
 //0x06    -> LED yellow OFF
+
 //0x07    -> LED green ON
+
 //0x08    -> LED green OFF
+
 //0x09    -> READ LED Status
-//
+
 //Receive:
+
 //0x10    -> All LEDs OFF
+
 //0x11    -> All LEDs ON
-//0x12    -> LED red ON               -> yellow & green off
-//0x13    -> LED yellow ON            -> red & green off
-//0x14    -> LED green ON             -> red & yellow off
-//0x15    -> LEDs red & yellow ON     -> green off
-//0x16    -> LEDs red & green ON      ->yellow off
-//0x17    -> LEDs yellow & green ON   ->red off
+
+//0x12    -> yellow & green off               
+
+//0x13    -> red & green off
+            
+//0x14    -> red & yellow off             
+
+//0x15    -> green off   
+
+//0x16    -> yellow off    
+
+//0x17    -> red off   
+
 
 **Slave:**
 **Der Slave benutzt die Arduino Framework und muss daher die Ardunio Bibliothek und die Wire Bibliothek eingefügt werden.**
 
-Der Slave verwendet die Arduino Framework
+Der Slave verwendet die Arduino Framework. Deshalb müssen auch die Arduino Bibliothekt und die Wire Bibliothek installiert werden. 
+Durch die Wire bibliothek, können wir mit WIre.anviable() den Status auf der Leitung prüfen, mit Wire.write() die Transmitt Bytes übertragen und mit Wire.read() empfangene Bytes lesen. 
+
+Durch die Case Struktur, die in der Loop ist, wird der RxByte abgefragt. Je nach wert springt die Loop dann in einen Case und steuert die Lampen. 
+
+In der IF-Anweisung in der I2C_TxHandler werden die drei bool Variablen, stateRed, stateYellow und stateGreen als Bedingung abgefragt. Je nachdem welchen Status die LED haben, springt der I2C_TxHandler in einen der If-else fälle. 
+
 
 
 
