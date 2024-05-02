@@ -59,6 +59,32 @@ Durch die Case Struktur, die in der Loop ist, wird der RxByte abgefragt. Je nach
 
 In der IF-Anweisung in der I2C_TxHandler werden die drei bool Variablen, stateRed, stateYellow und stateGreen als Bedingung abgefragt. Je nachdem welchen Status die LED haben, springt der I2C_TxHandler in einen der If-else fälle. 
 
+Folgende Befehle können am Master eingegeben werden: 
+
+“all on”:	schaltet alle 3 LEDs am Slave ein 
+
+“all off”:	schaltet alle 3 LEDs am Slave aus 
+
+“red on”:	schaltet die rote LED ein 
+
+“red off”:	schaltet die rote LED aus 
+
+“yellow on”:	schaltet die gelbe LED ein 
+
+“yellow off”:	schaltet die gelbe LED aus 
+
+“green on”:	schaltet die grüne LED an 
+
+“green off”:	schaltet die grüne LED aus 
+
+“hello”:	Funktionstest, Controller antwortet mit  
+“HELLO from the Nucleo-STM32F401RE :)” 
+
+“stats”:	Gibt eine Statistik zu den bisher eingegebenen Befehlen zurück 
+
+„status“:	Fragt den aktuellen Zustand der LEDs vom Slave ab und gibt diesen dann aus 
+
+ 
 
 
 
