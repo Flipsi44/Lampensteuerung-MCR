@@ -1,1 +1,365 @@
 
+#include <stm32f4xx.h>
+#include <gpio.h>
+#include <uart.h>
+#include <stdbool.h>
+#include <stddef.h>     //for size_t in clear buffer
+#include <string.h>
+#include <i2c.h>
+
+#ifdef USE_UART_PRINTF
+#include <stdio.h>
+int _write(int fd, char *ptr, int len)
+{
+    (void)fd;
+    if (fd == 1)
+        uart_write(USART2, (uint8_t *)ptr, (uint32_t)len);
+    return -1;
+}
+#define UART_LOG(msg...) printf(msg);
+#else
+#define UART_LOG(msg...) ;
+#endif
+
+#define I2C_ADDRESS 0x55 // Adresse des Slave-Controllers
+#define RX_BUFFER_SIZE 64
+
+// Buffer to store received data
+volatile uint8_t rx_buffer[RX_BUFFER_SIZE];
+volatile uint32_t rx_index = 0;
+volatile bool rx_buffer_overflow = false;
+volatile bool rx_newline = false;
+//volatile bool led_status = false;
+
+// data for sending & receiving
+uint8_t data_to_sent = 0;
+uint8_t data_received = 0;
+
+// I2C State
+I2C_Status_Type I2C_Status;
+
+void clear_rx_buffer()
+{
+    for (size_t i = 0; i < RX_BUFFER_SIZE; i++)
+    {
+        rx_buffer[i] = 0;
+    }
+    rx_index = 0;
+}
+
+typedef struct Stats
+{
+    uint32_t received;
+    uint32_t invalid;
+} stats_t;
+
+// init struct for statistics
+stats_t stats = {0, 0};
+
+
+typedef enum
+{
+    CMD_INVALID,
+    CMD_ALL_ON,
+    CMD_ALL_OFF,
+    CMD_RED_ON,
+    CMD_RED_OFF,
+    CMD_YELLOW_ON,
+    CMD_YELLOW_OFF,
+    CMD_GREEN_ON,
+    CMD_GREEN_OFF,
+    CMD_HELLO,
+    CMD_STATS,
+    CMD_STATUS,
+} SERIAL_COMMAND_t;
+
+
+//Send: 
+//0x01    -> All LEDs OFF
+//0x02    -> All LEDs ON
+//0x03    -> LED red ON
+//0x04    -> LED red OFF
+//0x05    -> LED yellow ON
+//0x06    -> LED yellow OFF
+//0x07    -> LED green ON
+//0x08    -> LED green OFF
+//0x09    -> READ LED Status
+
+void interpret_byte(uint8_t byte)
+{
+    switch (byte)
+    {
+    case 0x10:
+        UART_LOG("\033[34m STATUS: All LEDs are OFF. \033[0m \n");
+        break;
+    case 0x11:
+        UART_LOG("\033[34m STATUS: All LEDs are ON. \033[0m \n");
+        break;
+    case 0x12:
+        UART_LOG("\033[34m STATUS: \033[91mRED \033[34mLED is ON. \033[0m \n");
+        break;
+     case 0x13:
+        UART_LOG("\033[34m STATUS: \033[33mYELLOW \033[34mLED is ON. \033[0m \n");
+        break;
+     case 0x14:
+        UART_LOG("\033[34m STATUS: \033[32mGREEN \033[34mLED is ON. \033[0m \n");
+        break;
+     case 0x15:
+        UART_LOG("\033[34m STATUS: \033[91mRED \033[34m& \033[33mYELLOW \033[34mLEDs are ON. \033[0m \n");
+        break;
+    case 0x16:
+        UART_LOG("\033[34m STATUS: \033[91mRED \033[34mRed & \033[32mGREEN \033[34mLEDs are ON. \033[0m \n");
+        break;
+    case 0x17:
+        UART_LOG("\033[34m STATUS: \033[33mYELLOW \033[34m& \033[32mGREEN \033[34mLEDs are ON. \033[0m \n");
+        break;
+    
+    default:
+        UART_LOG("\033[91;1m STATUS: Transmission failed.\033[0m \n");
+        break;
+    }
+}
+
+//Commands:
+// all on:      turn all LEDs ON
+// all off:     turn all LEDs OFF
+// red on:      turn RED LED ON
+// red off:     turn RED LED OFF
+// yellow on:   turn YELLOW LED ON
+// yellow off:  turn YELLOW LED OFF
+// green on:    turn GREEN LED ON
+// green off:   turn GREEN LED OFF
+// hello:       test if controller is responding
+// stats:       return stats of commands
+// status:      returns LED STATUS
+
+SERIAL_COMMAND_t process_input(volatile uint8_t *buf)
+{
+    if (strncmp((const char *)buf, "all on\r\n", 8) == 0)
+    {
+        return CMD_ALL_ON;
+    }
+    else if (strncmp((const char *)buf, "all off\r\n", 9) == 0)
+    {
+        return CMD_ALL_OFF;
+    }
+     else if (strncmp((const char *)buf, "red on\r\n", 8) == 0)
+    {
+        return CMD_RED_ON;
+    }
+     else if (strncmp((const char *)buf, "red off\r\n", 9) == 0)
+    {
+        return CMD_RED_OFF;
+    }
+     else if (strncmp((const char *)buf, "yellow on\r\n", 11) == 0)
+    {
+        return CMD_YELLOW_ON;
+    }
+     else if (strncmp((const char *)buf, "yellow off\r\n", 12) == 0)
+    {
+        return CMD_YELLOW_OFF;
+    }
+     else if (strncmp((const char *)buf, "green on\r\n", 10) == 0)
+    {
+        return CMD_GREEN_ON;
+    }
+    else if (strncmp((const char *)buf, "green off\r\n", 11) == 0)
+    {
+        return CMD_GREEN_OFF;
+    }
+    else if (strncmp((const char *)buf, "hello\r\n", 7) == 0)
+    {
+        return CMD_HELLO;
+    }
+    else if (strncmp((const char *)buf, "stats\r\n", 7) == 0)
+    {
+        return CMD_STATS;
+    }
+    else if (strncmp((const char *)buf, "status\r\n", 8) == 0)
+    {
+        return CMD_STATUS;
+    }
+    else
+    {
+        return CMD_INVALID;
+    }
+}
+
+void execute_command(SERIAL_COMMAND_t cmd)
+{
+    stats.received++;
+    switch (cmd)
+    {
+    case CMD_ALL_ON:
+        led_on();
+        data_to_sent = 0x02;
+        UART_LOG("\033[34m CMD: All LEDs turned ON.\033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_ALL_OFF:
+        led_off();
+        data_to_sent = 0x01;
+        UART_LOG("\033[34m CMD: All LEDs turned OFF. \033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_RED_ON:
+        led_on();
+        data_to_sent = 0x03;
+        UART_LOG("\033[34m CMD: \033[91mRED \033[34mLED turned ON.\033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_RED_OFF:
+        led_off();
+        data_to_sent = 0x04;
+        UART_LOG("\033[34m CMD: \033[91mRED \033[34mLED turned turned OFF. \033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_YELLOW_ON:
+        led_on();
+        data_to_sent = 0x05;
+        UART_LOG("\033[34m CMD: \033[33mYELLOW \033[34mLED turned ON.\033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_YELLOW_OFF:
+        led_off();
+        data_to_sent = 0x06;
+        UART_LOG("\033[34m CMD: \033[33mYELLOW \033[34mLED turned OFF. \033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_GREEN_ON:
+        led_on();
+        data_to_sent = 0x07;
+        UART_LOG("\033[34m CMD: \033[32mGREEN \033[34mLED turned ON.\033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_GREEN_OFF:
+        led_off();
+        data_to_sent = 0x08;
+        UART_LOG("\033[34m CMD: \033[32mGREEN \033[34mLED turned OFF. \033[0m \n");
+        UART_LOG("\033[34m I2C: master transmit...\033[0m \n");
+        I2C_Status = i2c_master_transmit(I2C1, I2C_ADDRESS, &data_to_sent, 1);
+        //printf("Status: %i", I2C_Status);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        break;
+    case CMD_HELLO:
+        UART_LOG("\033[34m HELLO from the Nucleo-STM32F401RE :) \033[0m \n");
+        break;
+    case CMD_STATS:
+        UART_LOG("STATS:\033[33m received: %d,\033[91m invalid: %d,\033[32m valid: %d \033[0m \n", stats.received, stats.invalid, stats.received - stats.invalid);
+        break;
+    case CMD_STATUS:
+        UART_LOG("\033[34m I2C: Reading Status from SLAVE. \033[0m \n");
+        I2C_Status = i2c_master_receive(I2C1, I2C_ADDRESS, &data_received, 1);
+        //printf("Status: %i", I2C_Status);
+        //I2C_Status = i2c_master_receive(I2C1, I2C_ADDRESS, &data_received, 1);
+        if(!I2C_Status){UART_LOG("\033[33m I2C: WARNING: I2C_Status returned %i\033[0m \n", I2C_Status);}
+        else{UART_LOG("\033[32m I2C: transmission completed. \033[0m \n");}
+        interpret_byte(data_received);
+        break;
+    default:
+        stats.invalid++;
+        UART_LOG("\033[91;1m DEBUG: Invalid command\033[0m \n");
+        break;
+    }
+    
+}
+
+
+//Receive:
+//0x10    -> All LEDs OFF
+//0x11    -> All LEDs ON
+//0x12    -> LED red ON               -> yellow & green off
+//0x13    -> LED yellow ON            -> red & green off
+//0x14    -> LED green ON             -> red & yellow off
+//0x15    -> LEDs red & yellow ON     -> green off
+//0x16    -> LEDs red & green ON      ->yellow off 
+//0x17    -> LEDs yellow & green ON   ->red off
+
+
+int main(void)
+{
+    // Setup UART2 with a baudrate of 115200
+    uart_setup(USART2, 115200);
+    clear_rx_buffer();
+    //led_setup();
+    i2c_master_setup(I2C1, I2C_STANDARD);
+    UART_LOG("\033[32m DEBUG: This is the Master-Controller of group 3.\033[0m \n");
+
+    while (1)
+    {
+        if (rx_buffer_overflow)
+        {
+            // handle buffer overflow in uart
+            clear_rx_buffer(rx_buffer, RX_BUFFER_SIZE, rx_index);
+            rx_buffer_overflow = false; // just clearing the buffer might have impact on next incomming parts.
+            UART_LOG("\033[91;1m ERROR: rx_buffer overflow detected.\033[33m \n");
+        }
+
+        if (rx_newline)
+        {
+            // process command
+            UART_LOG("\033[0m")
+            SERIAL_COMMAND_t cmd = process_input(rx_buffer);
+            clear_rx_buffer();
+            rx_newline = false;
+            execute_command(cmd);
+        }
+    }
+}
+
+
+void USART2_IRQHandler(void)
+{
+    if (uart_data_available(USART2))
+    {
+        uint8_t byte = uart_read_byte(USART2);
+        uart_write_byte(USART2, byte);
+
+        // check for buffer overflow
+        if (rx_index >= RX_BUFFER_SIZE)
+        {
+            rx_buffer_overflow = true;
+            rx_index = 0;
+        }
+        else
+        {
+            rx_buffer[rx_index++] = byte;
+        }
+
+        if ('\n' == byte)
+        {
+            rx_newline = true;
+        }
+    }
+}
+
+
