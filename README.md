@@ -5,9 +5,9 @@ Gruppe Arne Beckmann, Philipp Kulas
 
 **Als Microcontroller werden die STM401RE verwendet.** 
 
-**Beide Microcontroller werden mit C++ programmiert, jedoch benutz der Slave die Arduino Framework und der Matser die Cmsis Framework.** 
+**Beide Microcontroller werden mit C++ programmiert, jedoch benutzt der Slave die Arduino Framework und der Master die Cmsis Framework.** 
 
-**Der Master soll Bytes senden und empfangen. Durch die Eingabe von Befehlen über UART werden die Bytes an den Slave geschickt. Der Slave muss dann diese Bytes erkennen und dann die Lampen, je nach Byte ansteuern. Auserdem soll der Master erkennen können ob der Slave bereit ist zum empfangen.**
+**Der Master soll Bytes senden und empfangen. Durch die Eingabe von Befehlen über UART werden die Bytes an den Slave geschickt. Der Slave muss dann diese Bytes erkennen und dann die Lampen, je nach Byte ansteuern.**
 
 //Bytes:
 
@@ -51,10 +51,9 @@ Gruppe Arne Beckmann, Philipp Kulas
 
 
 **Slave:**
-**Der Slave benutzt die Arduino Framework und muss daher die Ardunio Bibliothek und die Wire Bibliothek eingefügt werden.**
 
 Der Slave verwendet die Arduino Framework. Deshalb müssen auch die Arduino Bibliothekt und die Wire Bibliothek installiert werden. 
-Durch die Wire bibliothek, können wir mit WIre.anviable() den Status auf der Leitung prüfen, mit Wire.write() die Transmitt Bytes übertragen und mit Wire.read() empfangene Bytes lesen. 
+Durch die Wire Bibliothek, können wir mit WIre.anviable() den Status auf der Leitung prüfen, mit Wire.write() die Transmitt Bytes übertragen und mit Wire.read() empfangene Bytes lesen. 
 
 Durch die Case Struktur, die in der Loop ist, wird der RxByte abgefragt. Je nach wert springt die Loop dann in einen Case und steuert die Lampen. 
 
